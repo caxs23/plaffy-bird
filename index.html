@@ -82,8 +82,10 @@
         let bird = {
             x: 50,
             y: 0,
-            w: 70,
-            h: 55,
+            w: 105, // 시각적 크기 (기존 70 * 1.5)
+            h: 82.5, // 시각적 크기 (기존 55 * 1.5)
+            hitW: 70, // 충돌 판정용 너비 (기존 크기 유지)
+            hitH: 55, // 충돌 판정용 높이 (기존 크기 유지)
             velocity: 0,
             imgUp: new Image(),
             imgDown: new Image()
@@ -135,6 +137,7 @@
 
         function drawBird() {
             ctx.save();
+            // 캐릭터 중심을 기준으로 회전 및 렌더링
             ctx.translate(bird.x + bird.w/2, bird.y + bird.h/2);
             let rotation = Math.min(Math.PI / 4, Math.max(-Math.PI / 6, bird.velocity * 0.002));
             ctx.rotate(rotation);
@@ -142,6 +145,7 @@
             let currentImg = bird.velocity < 0 ? bird.imgUp : bird.imgDown;
 
             if (currentImg.complete && currentImg.naturalWidth !== 0) {
+                // 시각적으로는 w, h (1.5배) 크기로 그림
                 ctx.drawImage(currentImg, -bird.w/2, -bird.h/2, bird.w, bird.h);
             } else {
                 ctx.fillStyle = '#f8d348';
@@ -184,6 +188,7 @@
             bird.velocity += GRAVITY;
             bird.y += bird.velocity * dt;
 
+            // 화면 아래 바닥 충돌 판정 (시각적 크기가 아닌 히트박스 중심 기준으로 체크할 수도 있으나, 보통 바닥은 발끝 기준)
             if (bird.y + bird.h > canvas.height) {
                 bird.y = canvas.height - bird.h;
                 endGame();
@@ -206,12 +211,18 @@
             pipes.forEach((pipe) => {
                 pipe.x -= PIPE_SPEED * dt;
 
-                const pX = 15; 
-                const pY = 12;
+                // 충돌 판정 (Hitbox): 시각적 크기(w, h) 대신 실제 판정 크기(hitW, hitH) 사용
+                // 캐릭터의 중심을 기준으로 충돌 영역 설정
+                const hitBoxX = bird.x + (bird.w - bird.hitW) / 2;
+                const hitBoxY = bird.y + (bird.h - bird.hitH) / 2;
+
+                const pX = 15; // 히트박스 내부 가로 여백
+                const pY = 12; // 히트박스 내부 세로 여백
+
                 if (
-                    bird.x + pX < pipe.x + PIPE_WIDTH &&
-                    bird.x + bird.w - pX > pipe.x &&
-                    (bird.y + pY < pipe.top || bird.y + bird.h - pY > pipe.top + PIPE_GAP)
+                    hitBoxX + pX < pipe.x + PIPE_WIDTH &&
+                    hitBoxX + bird.hitW - pX > pipe.x &&
+                    (hitBoxY + pY < pipe.top || hitBoxY + bird.hitH - pY > pipe.top + PIPE_GAP)
                 ) {
                     endGame();
                 }
