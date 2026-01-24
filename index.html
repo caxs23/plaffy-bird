@@ -70,22 +70,22 @@
         const finalScore = document.getElementById('finalScore');
         const restartBtn = document.getElementById('restartBtn');
 
-        // Game Constants (Adjusted for time-based movement)
-        const GRAVITY = 15;      // Gravity per second^2
-        const JUMP_FORCE = -350; // Jump velocity
+        // Game Constants - Adjusted for better mobile responsiveness
+        const GRAVITY = 1000;      // Gravity (Pixels per second^2)
+        const JUMP_FORCE = -400;   // Jump velocity (Pixels per second)
         const PIPE_WIDTH = 52;
-        const PIPE_GAP = 165;
-        const PIPE_SPEED = 150;  // Pixels per second
-        const PIPE_SPAWN_TIME = 1.5; // Seconds between pipes
+        const PIPE_GAP = 180;      // Slightly increased gap for fairness
+        const PIPE_SPEED = 180;    // Pixels per second
+        const PIPE_SPAWN_TIME = 1.6; // Seconds between pipes
 
         // Game State
         let bird = {
             x: 50,
             y: 0,
-            w: 105, // 시각적 크기 (기존 70 * 1.5)
-            h: 82.5, // 시각적 크기 (기존 55 * 1.5)
-            hitW: 70, // 충돌 판정용 너비 (기존 크기 유지)
-            hitH: 55, // 충돌 판정용 높이 (기존 크기 유지)
+            w: 105, 
+            h: 82.5, 
+            hitW: 60, // Refined hitbox for 1.5x visual size
+            hitH: 45, 
             velocity: 0,
             imgUp: new Image(),
             imgDown: new Image()
@@ -127,25 +127,28 @@
                 gameStarted = true;
                 lastTime = performance.now();
             }
+            // Direct velocity assignment is better for consistent jump height across devices
             bird.velocity = JUMP_FORCE;
         }
 
         window.addEventListener('keydown', (e) => { if (e.code === 'Space') triggerJump(); });
         canvas.addEventListener('mousedown', (e) => { e.preventDefault(); triggerJump(); });
-        canvas.addEventListener('touchstart', (e) => { e.preventDefault(); triggerJump(); }, { passive: false });
+        canvas.addEventListener('touchstart', (e) => { 
+            e.preventDefault(); 
+            triggerJump(); 
+        }, { passive: false });
         restartBtn.addEventListener('click', resetGame);
 
         function drawBird() {
             ctx.save();
-            // 캐릭터 중심을 기준으로 회전 및 렌더링
             ctx.translate(bird.x + bird.w/2, bird.y + bird.h/2);
-            let rotation = Math.min(Math.PI / 4, Math.max(-Math.PI / 6, bird.velocity * 0.002));
+            // Rotation based on velocity
+            let rotation = Math.min(Math.PI / 4, Math.max(-Math.PI / 6, bird.velocity * 0.0015));
             ctx.rotate(rotation);
 
             let currentImg = bird.velocity < 0 ? bird.imgUp : bird.imgDown;
 
             if (currentImg.complete && currentImg.naturalWidth !== 0) {
-                // 시각적으로는 w, h (1.5배) 크기로 그림
                 ctx.drawImage(currentImg, -bird.w/2, -bird.h/2, bird.w, bird.h);
             } else {
                 ctx.fillStyle = '#f8d348';
@@ -184,11 +187,11 @@
         function update(dt) {
             if (gameOver || !gameStarted) return;
 
-            // Apply gravity
-            bird.velocity += GRAVITY;
+            // Physics Update
+            bird.velocity += GRAVITY * dt;
             bird.y += bird.velocity * dt;
 
-            // 화면 아래 바닥 충돌 판정 (시각적 크기가 아닌 히트박스 중심 기준으로 체크할 수도 있으나, 보통 바닥은 발끝 기준)
+            // Ceiling and Floor collision
             if (bird.y + bird.h > canvas.height) {
                 bird.y = canvas.height - bird.h;
                 endGame();
@@ -198,26 +201,26 @@
                 bird.velocity = 0;
             }
 
-            // Pipe spawning logic based on time
+            // Pipe Spawning
             pipeTimer += dt;
             if (pipeTimer >= PIPE_SPAWN_TIME) {
-                let minH = 80;
-                let maxH = canvas.height - PIPE_GAP - 80;
+                let minH = 100;
+                let maxH = canvas.height - PIPE_GAP - 100;
                 let height = Math.floor(Math.random() * (maxH - minH + 1)) + minH;
                 pipes.push({ x: canvas.width, top: height, passed: false });
                 pipeTimer = 0;
             }
 
+            // Pipe Movement and Collision
             pipes.forEach((pipe) => {
                 pipe.x -= PIPE_SPEED * dt;
 
-                // 충돌 판정 (Hitbox): 시각적 크기(w, h) 대신 실제 판정 크기(hitW, hitH) 사용
-                // 캐릭터의 중심을 기준으로 충돌 영역 설정
+                // Collision Detection Logic
                 const hitBoxX = bird.x + (bird.w - bird.hitW) / 2;
                 const hitBoxY = bird.y + (bird.h - bird.hitH) / 2;
 
-                const pX = 15; // 히트박스 내부 가로 여백
-                const pY = 12; // 히트박스 내부 세로 여백
+                const pX = 12; 
+                const pY = 10;
 
                 if (
                     hitBoxX + pX < pipe.x + PIPE_WIDTH &&
@@ -250,6 +253,7 @@
             ctx.fillStyle = '#70c5ce';
             ctx.fillRect(0, 0, canvas.width, canvas.height);
 
+            // Simple Clouds
             ctx.fillStyle = 'rgba(255,255,255,0.3)';
             ctx.beginPath(); ctx.arc(50, 80, 20, 0, Math.PI*2); ctx.fill();
             ctx.beginPath(); ctx.arc(80, 80, 30, 0, Math.PI*2); ctx.fill();
@@ -269,9 +273,8 @@
         }
 
         function gameLoop(timestamp) {
-            // Calculate delta time (dt) in seconds
             let dt = (timestamp - lastTime) / 1000;
-            if (dt > 0.1) dt = 0.1; // Prevent huge jumps during lag
+            if (dt > 0.05) dt = 0.05; // Cap dt to avoid glitchy physics on lag/backgrounding
             lastTime = timestamp;
 
             update(dt);
