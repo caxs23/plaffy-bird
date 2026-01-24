@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Fixed Speed Flappy Bird</title>
+    <title>Perfect Sync Flappy Bird</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         body {
@@ -70,13 +70,14 @@
         const finalScore = document.getElementById('finalScore');
         const restartBtn = document.getElementById('restartBtn');
 
-        // Game Constants - Adjusted for better mobile responsiveness
-        const GRAVITY = 1000;      // Gravity (Pixels per second^2)
-        const JUMP_FORCE = -400;   // Jump velocity (Pixels per second)
+        // Game Constants - Fixed Physics values
+        const FIXED_DT = 1 / 60;   // 60FPS fixed step
+        const GRAVITY = 1200;      
+        const JUMP_FORCE = -380;   
         const PIPE_WIDTH = 52;
-        const PIPE_GAP = 180;      // Slightly increased gap for fairness
-        const PIPE_SPEED = 180;    // Pixels per second
-        const PIPE_SPAWN_TIME = 1.6; // Seconds between pipes
+        const PIPE_GAP = 185;      
+        const PIPE_SPEED = 190;    
+        const PIPE_SPAWN_TIME = 1.5; 
 
         // Game State
         let bird = {
@@ -84,7 +85,7 @@
             y: 0,
             w: 105, 
             h: 82.5, 
-            hitW: 60, // Refined hitbox for 1.5x visual size
+            hitW: 60, 
             hitH: 45, 
             velocity: 0,
             imgUp: new Image(),
@@ -99,6 +100,7 @@
         let gameOver = false;
         let gameStarted = false;
         let lastTime = 0;
+        let accumulator = 0;
         let pipeTimer = 0;
 
         function init() {
@@ -116,6 +118,7 @@
             pipeTimer = 0;
             gameOver = false;
             gameStarted = false;
+            accumulator = 0;
             scoreDisplay.textContent = '0';
             restartBox.style.display = 'none';
             lastTime = performance.now();
@@ -127,22 +130,32 @@
                 gameStarted = true;
                 lastTime = performance.now();
             }
-            // Direct velocity assignment is better for consistent jump height across devices
             bird.velocity = JUMP_FORCE;
         }
 
-        window.addEventListener('keydown', (e) => { if (e.code === 'Space') triggerJump(); });
-        canvas.addEventListener('mousedown', (e) => { e.preventDefault(); triggerJump(); });
+        // Improved Input Handling
+        window.addEventListener('keydown', (e) => { 
+            if (e.code === 'Space' || e.code === 'ArrowUp') {
+                e.preventDefault();
+                triggerJump(); 
+            }
+        });
+        
+        canvas.addEventListener('mousedown', (e) => { 
+            e.preventDefault(); 
+            triggerJump(); 
+        });
+
         canvas.addEventListener('touchstart', (e) => { 
             e.preventDefault(); 
             triggerJump(); 
         }, { passive: false });
+
         restartBtn.addEventListener('click', resetGame);
 
         function drawBird() {
             ctx.save();
             ctx.translate(bird.x + bird.w/2, bird.y + bird.h/2);
-            // Rotation based on velocity
             let rotation = Math.min(Math.PI / 4, Math.max(-Math.PI / 6, bird.velocity * 0.0015));
             ctx.rotate(rotation);
 
@@ -184,14 +197,13 @@
             });
         }
 
-        function update(dt) {
+        // Fixed Physics Update
+        function physicsUpdate() {
             if (gameOver || !gameStarted) return;
 
-            // Physics Update
-            bird.velocity += GRAVITY * dt;
-            bird.y += bird.velocity * dt;
+            bird.velocity += GRAVITY * FIXED_DT;
+            bird.y += bird.velocity * FIXED_DT;
 
-            // Ceiling and Floor collision
             if (bird.y + bird.h > canvas.height) {
                 bird.y = canvas.height - bird.h;
                 endGame();
@@ -201,8 +213,7 @@
                 bird.velocity = 0;
             }
 
-            // Pipe Spawning
-            pipeTimer += dt;
+            pipeTimer += FIXED_DT;
             if (pipeTimer >= PIPE_SPAWN_TIME) {
                 let minH = 100;
                 let maxH = canvas.height - PIPE_GAP - 100;
@@ -211,14 +222,11 @@
                 pipeTimer = 0;
             }
 
-            // Pipe Movement and Collision
             pipes.forEach((pipe) => {
-                pipe.x -= PIPE_SPEED * dt;
+                pipe.x -= PIPE_SPEED * FIXED_DT;
 
-                // Collision Detection Logic
                 const hitBoxX = bird.x + (bird.w - bird.hitW) / 2;
                 const hitBoxY = bird.y + (bird.h - bird.hitH) / 2;
-
                 const pX = 12; 
                 const pY = 10;
 
@@ -253,7 +261,6 @@
             ctx.fillStyle = '#70c5ce';
             ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-            // Simple Clouds
             ctx.fillStyle = 'rgba(255,255,255,0.3)';
             ctx.beginPath(); ctx.arc(50, 80, 20, 0, Math.PI*2); ctx.fill();
             ctx.beginPath(); ctx.arc(80, 80, 30, 0, Math.PI*2); ctx.fill();
@@ -274,10 +281,16 @@
 
         function gameLoop(timestamp) {
             let dt = (timestamp - lastTime) / 1000;
-            if (dt > 0.05) dt = 0.05; // Cap dt to avoid glitchy physics on lag/backgrounding
+            if (dt > 0.1) dt = 0.1; 
             lastTime = timestamp;
 
-            update(dt);
+            // Fixed Time Step Loop
+            accumulator += dt;
+            while (accumulator >= FIXED_DT) {
+                physicsUpdate();
+                accumulator -= FIXED_DT;
+            }
+
             draw();
             requestAnimationFrame(gameLoop);
         }
