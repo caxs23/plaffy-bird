@@ -70,22 +70,22 @@
         const finalScore = document.getElementById('finalScore');
         const restartBtn = document.getElementById('restartBtn');
 
-        // Game Constants - Fixed Physics values
-        const FIXED_DT = 1 / 60;   // 60FPS fixed step
-        const GRAVITY = 1200;      
-        const JUMP_FORCE = -380;   
+        // Game Constants - Adjusted 0.8x Tempo
+        const FIXED_DT = 1 / 60;   
+        const GRAVITY = 1200 * 0.8;      
+        const JUMP_FORCE = -380 * 0.82; // Slightly adjusted for 0.8x gravity feel
         const PIPE_WIDTH = 52;
-        const PIPE_GAP = 185;      
-        const PIPE_SPEED = 190;    
-        const PIPE_SPAWN_TIME = 1.5; 
+        const PIPE_GAP = 195;      // Slightly wider for easier navigation
+        const PIPE_SPEED = 190 * 0.8;    
+        const PIPE_SPAWN_TIME = 1.5 / 0.8; 
 
         // Game State
         let bird = {
             x: 50,
             y: 0,
-            w: 105, 
-            h: 82.5, 
-            hitW: 60, 
+            w: 105, // 1.5x Visual Width
+            h: 82.5, // 1.5x Visual Height
+            hitW: 60, // Original Hitbox preserved
             hitH: 45, 
             velocity: 0,
             imgUp: new Image(),
@@ -204,8 +204,7 @@
             bird.velocity += GRAVITY * FIXED_DT;
             bird.y += bird.velocity * FIXED_DT;
 
-            if (bird.y + bird.h > canvas.height) {
-                bird.y = canvas.height - bird.h;
+            if (bird.y + (bird.h - (bird.h - bird.hitH)/2) > canvas.height) {
                 endGame();
             }
             if (bird.y < 0) {
