@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Dual Image Flappy Bird</title>
+    <title>Fixed Speed Flappy Bird</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         body {
@@ -39,6 +39,7 @@
             border-radius: 1rem;
             color: white;
             display: none;
+            z-index: 10;
         }
     </style>
 </head>
@@ -59,10 +60,6 @@
     </div>
 
     <script>
-        /**
-         * 이미지 설정 구역
-         * 이곳의 URL을 깃허브 원본 이미지(Raw) 주소로 교체하세요.
-         */
         const IMG_UP_URL = 'https://github.com/caxs23/plaffy-bird/blob/main/2-removebg-preview.png?raw=true';
         const IMG_DOWN_URL = 'https://github.com/caxs23/plaffy-bird/blob/main/1-removebg-preview.png?raw=true';
 
@@ -73,40 +70,40 @@
         const finalScore = document.getElementById('finalScore');
         const restartBtn = document.getElementById('restartBtn');
 
-        // Game Constants
-        const GRAVITY = 0.22;
-        const JUMP = -4.6;
+        // Game Constants (Adjusted for time-based movement)
+        const GRAVITY = 15;      // Gravity per second^2
+        const JUMP_FORCE = -350; // Jump velocity
         const PIPE_WIDTH = 52;
         const PIPE_GAP = 165;
-        const PIPE_SPACING = 100; // Frames between pipes
+        const PIPE_SPEED = 150;  // Pixels per second
+        const PIPE_SPAWN_TIME = 1.5; // Seconds between pipes
 
         // Game State
         let bird = {
             x: 50,
-            y: 150,
-            w: 42,
-            h: 32,
+            y: 0,
+            w: 70,
+            h: 55,
             velocity: 0,
             imgUp: new Image(),
             imgDown: new Image()
         };
 
-        // Load Images
         bird.imgUp.src = IMG_UP_URL;
         bird.imgDown.src = IMG_DOWN_URL;
 
         let pipes = [];
-        let frame = 0;
         let score = 0;
         let gameOver = false;
         let gameStarted = false;
+        let lastTime = 0;
+        let pipeTimer = 0;
 
         function init() {
-            // Set internal resolution
             canvas.width = 360;
             canvas.height = 640;
             resetGame();
-            gameLoop();
+            requestAnimationFrame(gameLoop);
         }
 
         function resetGame() {
@@ -114,20 +111,23 @@
             bird.velocity = 0;
             pipes = [];
             score = 0;
-            frame = 0;
+            pipeTimer = 0;
             gameOver = false;
             gameStarted = false;
             scoreDisplay.textContent = '0';
             restartBox.style.display = 'none';
+            lastTime = performance.now();
         }
 
         function triggerJump() {
             if (gameOver) return;
-            if (!gameStarted) gameStarted = true;
-            bird.velocity = JUMP;
+            if (!gameStarted) {
+                gameStarted = true;
+                lastTime = performance.now();
+            }
+            bird.velocity = JUMP_FORCE;
         }
 
-        // Event Listeners
         window.addEventListener('keydown', (e) => { if (e.code === 'Space') triggerJump(); });
         canvas.addEventListener('mousedown', (e) => { e.preventDefault(); triggerJump(); });
         canvas.addEventListener('touchstart', (e) => { e.preventDefault(); triggerJump(); }, { passive: false });
@@ -136,19 +136,14 @@
         function drawBird() {
             ctx.save();
             ctx.translate(bird.x + bird.w/2, bird.y + bird.h/2);
-            
-            // Rotate based on velocity
-            let rotation = Math.min(Math.PI / 4, Math.max(-Math.PI / 6, bird.velocity * 0.1));
+            let rotation = Math.min(Math.PI / 4, Math.max(-Math.PI / 6, bird.velocity * 0.002));
             ctx.rotate(rotation);
 
-            // Select image based on movement (velocity)
-            // velocity가 음수면 위로 상승 중, 양수면 아래로 하강 중
             let currentImg = bird.velocity < 0 ? bird.imgUp : bird.imgDown;
 
             if (currentImg.complete && currentImg.naturalWidth !== 0) {
                 ctx.drawImage(currentImg, -bird.w/2, -bird.h/2, bird.w, bird.h);
             } else {
-                // Fallback while loading
                 ctx.fillStyle = '#f8d348';
                 ctx.beginPath();
                 ctx.ellipse(0, 0, bird.w/2, bird.h/2, 0, 0, Math.PI * 2);
@@ -159,7 +154,6 @@
 
         function drawPipes() {
             pipes.forEach(pipe => {
-                // Gradient for pipes
                 let grad = ctx.createLinearGradient(pipe.x, 0, pipe.x + PIPE_WIDTH, 0);
                 grad.addColorStop(0, '#73bf2e');
                 grad.addColorStop(0.5, '#9ce659');
@@ -169,33 +163,27 @@
                 ctx.strokeStyle = '#2d5a00';
                 ctx.lineWidth = 2;
 
-                // Top pipe
                 ctx.fillRect(pipe.x, 0, PIPE_WIDTH, pipe.top);
                 ctx.strokeRect(pipe.x, -2, PIPE_WIDTH, pipe.top + 2);
-                
-                // Pipe cap (top)
                 ctx.fillRect(pipe.x - 4, pipe.top - 20, PIPE_WIDTH + 8, 20);
                 ctx.strokeRect(pipe.x - 4, pipe.top - 20, PIPE_WIDTH + 8, 20);
 
-                // Bottom pipe
                 const bottomY = pipe.top + PIPE_GAP;
                 const bottomH = canvas.height - bottomY;
                 ctx.fillRect(pipe.x, bottomY, PIPE_WIDTH, bottomH);
                 ctx.strokeRect(pipe.x, bottomY, PIPE_WIDTH, bottomH + 2);
-
-                // Pipe cap (bottom)
                 ctx.fillRect(pipe.x - 4, bottomY, PIPE_WIDTH + 8, 20);
                 ctx.strokeRect(pipe.x - 4, bottomY, PIPE_WIDTH + 8, 20);
             });
         }
 
-        function update() {
+        function update(dt) {
             if (gameOver || !gameStarted) return;
 
+            // Apply gravity
             bird.velocity += GRAVITY;
-            bird.y += bird.velocity;
+            bird.y += bird.velocity * dt;
 
-            // Boundary collision
             if (bird.y + bird.h > canvas.height) {
                 bird.y = canvas.height - bird.h;
                 endGame();
@@ -205,28 +193,29 @@
                 bird.velocity = 0;
             }
 
-            // Pipe spawning
-            if (frame % PIPE_SPACING === 0) {
+            // Pipe spawning logic based on time
+            pipeTimer += dt;
+            if (pipeTimer >= PIPE_SPAWN_TIME) {
                 let minH = 80;
                 let maxH = canvas.height - PIPE_GAP - 80;
                 let height = Math.floor(Math.random() * (maxH - minH + 1)) + minH;
                 pipes.push({ x: canvas.width, top: height, passed: false });
+                pipeTimer = 0;
             }
 
             pipes.forEach((pipe) => {
-                pipe.x -= 2.5;
+                pipe.x -= PIPE_SPEED * dt;
 
-                // Hitbox detection
-                const p = 6; // hitbox padding
+                const pX = 15; 
+                const pY = 12;
                 if (
-                    bird.x + p < pipe.x + PIPE_WIDTH &&
-                    bird.x + bird.w - p > pipe.x &&
-                    (bird.y + p < pipe.top || bird.y + bird.h - p > pipe.top + PIPE_GAP)
+                    bird.x + pX < pipe.x + PIPE_WIDTH &&
+                    bird.x + bird.w - pX > pipe.x &&
+                    (bird.y + pY < pipe.top || bird.y + bird.h - pY > pipe.top + PIPE_GAP)
                 ) {
                     endGame();
                 }
 
-                // Scoring
                 if (!pipe.passed && bird.x > pipe.x + PIPE_WIDTH) {
                     score++;
                     pipe.passed = true;
@@ -234,12 +223,9 @@
                 }
             });
 
-            // Clean up off-screen pipes
-            if (pipes.length > 0 && pipes[0].x < -PIPE_WIDTH - 10) {
+            if (pipes.length > 0 && pipes[0].x < -PIPE_WIDTH - 20) {
                 pipes.shift();
             }
-
-            frame++;
         }
 
         function endGame() {
@@ -250,11 +236,9 @@
         }
 
         function draw() {
-            // Draw Sky background
             ctx.fillStyle = '#70c5ce';
             ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-            // Draw some clouds (Static for now)
             ctx.fillStyle = 'rgba(255,255,255,0.3)';
             ctx.beginPath(); ctx.arc(50, 80, 20, 0, Math.PI*2); ctx.fill();
             ctx.beginPath(); ctx.arc(80, 80, 30, 0, Math.PI*2); ctx.fill();
@@ -273,8 +257,13 @@
             }
         }
 
-        function gameLoop() {
-            update();
+        function gameLoop(timestamp) {
+            // Calculate delta time (dt) in seconds
+            let dt = (timestamp - lastTime) / 1000;
+            if (dt > 0.1) dt = 0.1; // Prevent huge jumps during lag
+            lastTime = timestamp;
+
+            update(dt);
             draw();
             requestAnimationFrame(gameLoop);
         }
