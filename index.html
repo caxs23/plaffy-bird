@@ -62,6 +62,7 @@
     <script>
         const IMG_UP_URL = 'https://github.com/caxs23/plaffy-bird/blob/main/2-removebg-preview.png?raw=true';
         const IMG_DOWN_URL = 'https://github.com/caxs23/plaffy-bird/blob/main/1-removebg-preview.png?raw=true';
+        const SOUND_JUMP_URL = 'https://github.com/caxs23/runandjump/blob/main/jump.mp3?raw=true';
 
         const canvas = document.getElementById('gameCanvas');
         const ctx = canvas.getContext('2d');
@@ -70,12 +71,15 @@
         const finalScore = document.getElementById('finalScore');
         const restartBtn = document.getElementById('restartBtn');
 
+        // Audio Setup
+        const jumpSound = new Audio(SOUND_JUMP_URL);
+
         // Game Constants - Adjusted 0.8x Tempo
         const FIXED_DT = 1 / 60;   
         const GRAVITY = 1200 * 0.8;      
-        const JUMP_FORCE = -380 * 0.82; // Slightly adjusted for 0.8x gravity feel
+        const JUMP_FORCE = -380 * 0.82; 
         const PIPE_WIDTH = 52;
-        const PIPE_GAP = 195;      // Slightly wider for easier navigation
+        const PIPE_GAP = 195;      
         const PIPE_SPEED = 190 * 0.8;    
         const PIPE_SPAWN_TIME = 1.5 / 0.8; 
 
@@ -83,9 +87,9 @@
         let bird = {
             x: 50,
             y: 0,
-            w: 105, // 1.5x Visual Width
-            h: 82.5, // 1.5x Visual Height
-            hitW: 60, // Original Hitbox preserved
+            w: 105, 
+            h: 82.5, 
+            hitW: 60, 
             hitH: 45, 
             velocity: 0,
             imgUp: new Image(),
@@ -126,6 +130,11 @@
 
         function triggerJump() {
             if (gameOver) return;
+            
+            // Play Jump Sound
+            jumpSound.currentTime = 0; // Reset sound to start to allow rapid fire
+            jumpSound.play().catch(e => console.log("Audio play deferred until user interaction"));
+
             if (!gameStarted) {
                 gameStarted = true;
                 lastTime = performance.now();
@@ -197,7 +206,6 @@
             });
         }
 
-        // Fixed Physics Update
         function physicsUpdate() {
             if (gameOver || !gameStarted) return;
 
@@ -283,7 +291,6 @@
             if (dt > 0.1) dt = 0.1; 
             lastTime = timestamp;
 
-            // Fixed Time Step Loop
             accumulator += dt;
             while (accumulator >= FIXED_DT) {
                 physicsUpdate();
