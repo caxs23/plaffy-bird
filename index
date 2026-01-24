@@ -63,8 +63,8 @@
          * 이미지 설정 구역
          * 이곳의 URL을 깃허브 원본 이미지(Raw) 주소로 교체하세요.
          */
-        const IMG_UP_URL = 'https://raw.githubusercontent.com/samuelcust/flappy-bird-assets/master/sprites/yellowbird-upflap.png';
-        const IMG_DOWN_URL = 'https://raw.githubusercontent.com/samuelcust/flappy-bird-assets/master/sprites/yellowbird-downflap.png';
+        const IMG_UP_URL = 'https://github.com/caxs23/plaffy-bird/blob/main/2-removebg-preview.png';
+        const IMG_DOWN_URL = 'https://github.com/caxs23/plaffy-bird/blob/main/1-removebg-preview.png';
 
         const canvas = document.getElementById('gameCanvas');
         const ctx = canvas.getContext('2d');
