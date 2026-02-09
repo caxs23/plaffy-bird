@@ -39,6 +39,11 @@
             align-items: center;
         }
 
+        /* 점수 팝업 애니메이션 */
+        @keyframes scorePop {
+            0% { transform: scale(1.5); color: #ffeb3b; }
+            100% { transform: scale(1); color: white; }
+        }
         .score-display {
             position: absolute;
             top: 10%;
@@ -47,6 +52,10 @@
             text-shadow: 3px 3px 0 #000, -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000;
             z-index: 20;
             pointer-events: none;
+            transition: transform 0.3s ease-out;
+        }
+        .score-pop {
+            animation: scorePop 0.4s ease-out;
         }
 
         #startScreen {
@@ -118,12 +127,26 @@
             opacity: 1;
             transform: scale(1.2) translateY(-20px);
         }
+
+        /* 폭발 이미지 스타일 */
+        #explosion {
+            position: absolute;
+            display: none;
+            z-index: 35;
+            width: 150px;
+            height: 150px;
+            pointer-events: none;
+            transform: translate(-50%, -50%);
+        }
     </style>
 </head>
 <body>
 
     <div class="relative w-full h-screen flex justify-center bg-gray-900">
         <canvas id="gameCanvas"></canvas>
+        
+        <!-- 폭발 효과 이미지 -->
+        <img id="explosion" src="https://github.com/caxs23/plaffy-bird/blob/main/explo.gif?raw=true" alt="explosion">
 
         <div id="scoreDisplay" class="score-display">0</div>
         <div id="celebrationMsg">🎉 10점 돌파! 🎉</div>
@@ -170,6 +193,7 @@
         const bestScoreEl = document.getElementById('bestScore');
         const restartBtn = document.getElementById('restartBtn');
         const celebrationMsg = document.getElementById('celebrationMsg');
+        const explosionImg = document.getElementById('explosion');
 
         const jumpSound = new Audio(SOUND_JUMP_URL);
 
@@ -190,6 +214,7 @@
             hitW: 60, 
             hitH: 45, 
             velocity: 0,
+            isVisible: true,
             imgUp: new Image(),
             imgDown: new Image()
         };
@@ -258,21 +283,24 @@
             currentState = 'START';
             bird.y = canvas.height / 2;
             bird.velocity = 0;
+            bird.isVisible = true;
             pipes = [];
             score = 0;
             pipeTimer = 0;
             accumulator = 0;
             scoreDisplay.textContent = '0';
+            scoreDisplay.classList.remove('score-pop');
             scoreDisplay.style.display = 'none';
             startScreen.style.display = 'flex';
             gameOverScreen.style.display = 'none';
             gameOverBox.style.display = 'none';
+            explosionImg.style.display = 'none';
             celebrationMsg.className = '';
             lastTime = performance.now();
         }
 
         function startGame() {
-            if (currentState === 'PLAYING') return;
+            if (currentState === 'PLAYING' || currentState === 'EXPLODING') return;
             currentState = 'PLAYING';
             scoreDisplay.style.display = 'block';
             startScreen.style.display = 'none';
@@ -289,20 +317,50 @@
         }
 
         function triggerGameOver() {
-            if (currentState === 'GAMEOVER') return;
-            currentState = 'GAMEOVER';
+            if (currentState === 'GAMEOVER' || currentState === 'EXPLODING') return;
+            currentState = 'EXPLODING';
             
-            if (score > localBestScore) {
-                localBestScore = score;
-                localStorage.setItem('flappyJuwonBest', localBestScore);
-            }
+            // 폭발 이미지 위치 설정 및 표시
+            const canvasRect = canvas.getBoundingClientRect();
+            const birdCenterX = canvasRect.left + (bird.x + bird.w/2) * (canvasRect.width / canvas.width);
+            const birdCenterY = canvasRect.top + (bird.y + bird.h/2) * (canvasRect.height / canvas.height);
+            
+            explosionImg.style.left = birdCenterX + 'px';
+            explosionImg.style.top = birdCenterY + 'px';
+            explosionImg.style.display = 'block';
+            
+            // 새 숨기기
+            bird.isVisible = false;
 
-            finalScoreEl.textContent = score;
-            bestScoreEl.textContent = localBestScore;
+            // 약 1초 후 (2배 느린 연출 느낌) 게임 오버 결과창 표시
+            setTimeout(() => {
+                currentState = 'GAMEOVER';
+                explosionImg.style.display = 'none';
+
+                if (score > localBestScore) {
+                    localBestScore = score;
+                    localStorage.setItem('flappyJuwonBest', localBestScore);
+                }
+
+                finalScoreEl.textContent = score;
+                bestScoreEl.textContent = localBestScore;
+                
+                scoreDisplay.style.display = 'none';
+                gameOverScreen.style.display = 'flex';
+                gameOverBox.style.display = 'block';
+            }, 1000); 
+        }
+
+        function updateScore() {
+            score++;
+            scoreDisplay.textContent = score;
             
-            scoreDisplay.style.display = 'none';
-            gameOverScreen.style.display = 'flex';
-            gameOverBox.style.display = 'block';
+            // 점수 팝 애니메이션 적용
+            scoreDisplay.classList.remove('score-pop');
+            void scoreDisplay.offsetWidth; // 리플로우 강제
+            scoreDisplay.classList.add('score-pop');
+
+            if (score % 10 === 0 && score > 0) showCelebration(`🎉 대단해요! ${score}점! 🎉`);
         }
 
         function showCelebration(text) {
@@ -343,6 +401,8 @@
         }, { passive: false });
 
         function drawBird() {
+            if (!bird.isVisible) return;
+
             ctx.save();
             ctx.translate(bird.x + bird.w/2, bird.y + bird.h/2);
             let rotation = Math.min(Math.PI / 4, Math.max(-Math.PI / 6, bird.velocity * 0.0015));
@@ -416,11 +476,11 @@
                 ) {
                     triggerGameOver();
                 }
-                if (!pipe.passed && bird.x > pipe.x + PIPE_WIDTH) {
-                    score++;
+                
+                // 판정 로직 수정: 새의 중심부가 파이프의 왼쪽 선에 닿자마자 점수 획득
+                if (!pipe.passed && bird.x + bird.w / 2 > pipe.x) {
                     pipe.passed = true;
-                    scoreDisplay.textContent = score;
-                    if (score % 10 === 0 && score > 0) showCelebration(`🎉 대단해요! ${score}점! 🎉`);
+                    updateScore();
                 }
             });
             if (pipes.length > 0 && pipes[0].x < -PIPE_WIDTH - 20) pipes.shift();
