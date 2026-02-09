@@ -181,6 +181,7 @@
         const IMG_UP_URL = 'https://github.com/caxs23/plaffy-bird/blob/main/2-removebg-preview.png?raw=true';
         const IMG_DOWN_URL = 'https://github.com/caxs23/plaffy-bird/blob/main/1-removebg-preview.png?raw=true';
         const SOUND_JUMP_URL = 'https://github.com/caxs23/runandjump/blob/main/jump.mp3?raw=true';
+        const SOUND_DEATH_URL = 'https://github.com/caxs23/plaffy-bird/blob/main/ex.wav?raw=true';
 
         const canvas = document.getElementById('gameCanvas');
         const ctx = canvas.getContext('2d');
@@ -196,6 +197,7 @@
         const explosionImg = document.getElementById('explosion');
 
         const jumpSound = new Audio(SOUND_JUMP_URL);
+        const deathSound = new Audio(SOUND_DEATH_URL);
 
         const FIXED_DT = 1 / 60;   
         const GRAVITY = 1200 * 0.8;      
@@ -320,6 +322,10 @@
             if (currentState === 'GAMEOVER' || currentState === 'EXPLODING') return;
             currentState = 'EXPLODING';
             
+            // 게임 오버 사운드 재생
+            deathSound.currentTime = 0;
+            deathSound.play().catch(() => {});
+
             // 폭발 이미지 위치 설정 및 표시
             const canvasRect = canvas.getBoundingClientRect();
             const birdCenterX = canvasRect.left + (bird.x + bird.w/2) * (canvasRect.width / canvas.width);
