@@ -178,10 +178,14 @@
     </div>
 
     <script>
+        // --- 리소스 URL 설정 ---
         const IMG_UP_URL = 'https://github.com/caxs23/plaffy-bird/blob/main/2-removebg-preview.png?raw=true';
         const IMG_DOWN_URL = 'https://github.com/caxs23/plaffy-bird/blob/main/1-removebg-preview.png?raw=true';
+        
         const SOUND_JUMP_URL = 'https://github.com/caxs23/runandjump/blob/main/jump.mp3?raw=true';
-        const SOUND_DEATH_URL = 'https://github.com/caxs23/plaffy-bird/blob/main/ex.wav?raw=true';
+        const SOUND_DEATH_URL = 'https://github.com/caxs23/plaffy-bird/blob/main/ex.mp3?raw=true'; 
+        const SOUND_SCORE_URL = 'https://github.com/caxs23/plaffy-bird/blob/main/ding.mp3?raw=true'; 
+        const SOUND_TADA_URL = 'https://github.com/caxs23/plaffy-bird/blob/main/tada.mp3?raw=true'; 
 
         const canvas = document.getElementById('gameCanvas');
         const ctx = canvas.getContext('2d');
@@ -196,8 +200,11 @@
         const celebrationMsg = document.getElementById('celebrationMsg');
         const explosionImg = document.getElementById('explosion');
 
+        // 오디오 객체 초기화
         const jumpSound = new Audio(SOUND_JUMP_URL);
         const deathSound = new Audio(SOUND_DEATH_URL);
+        const scoreSound = new Audio(SOUND_SCORE_URL);
+        const tadaSound = new Audio(SOUND_TADA_URL);
 
         const FIXED_DT = 1 / 60;   
         const GRAVITY = 1200 * 0.8;      
@@ -226,12 +233,14 @@
 
         let pipes = [];
         let clouds = [];
+        let mountains = []; 
         let score = 0;
         let localBestScore = localStorage.getItem('flappyJuwonBest') || 0;
         let lastTime = 0;
         let accumulator = 0;
         let pipeTimer = 0;
 
+        // --- 구름 클래스 ---
         class Cloud {
             constructor(x, y, scale, speed) {
                 this.x = x;
@@ -260,6 +269,44 @@
             }
         }
 
+        // --- 산(Mountain) 클래스 ---
+        class Mountain {
+            constructor(x) {
+                this.x = x;
+                this.w = 150 + Math.random() * 200; 
+                this.h = 100 + Math.random() * 150; 
+                this.color = Math.random() > 0.5 ? '#88b06b' : '#7da85e'; 
+            }
+            update(dt) {
+                this.x -= (PIPE_SPEED * 0.2) * dt; 
+                if (this.x + this.w < 0) {
+                    this.x = canvas.width;
+                    this.w = 150 + Math.random() * 200;
+                    this.h = 100 + Math.random() * 150;
+                    this.color = Math.random() > 0.5 ? '#88b06b' : '#7da85e';
+                }
+            }
+            draw(ctx) {
+                const bottomY = canvas.height;
+                ctx.fillStyle = this.color;
+                ctx.beginPath();
+                ctx.moveTo(this.x, bottomY);
+                ctx.lineTo(this.x + this.w / 2, bottomY - this.h);
+                ctx.lineTo(this.x + this.w, bottomY);
+                ctx.closePath();
+                ctx.fill();
+
+                // 산 꼭대기 눈
+                ctx.fillStyle = 'rgba(255,255,255,0.3)';
+                ctx.beginPath();
+                ctx.moveTo(this.x + this.w / 2, bottomY - this.h);
+                ctx.lineTo(this.x + this.w / 2 - 20, bottomY - this.h + 35);
+                ctx.lineTo(this.x + this.w / 2 + 20, bottomY - this.h + 35);
+                ctx.closePath();
+                ctx.fill();
+            }
+        }
+
         function initClouds() {
             clouds = [];
             for(let i=0; i<5; i++) {
@@ -271,12 +318,25 @@
             }
         }
 
+        function initMountains() {
+            mountains = [];
+            let currentX = -50;
+            while (currentX < canvas.width + 200) {
+                const m = new Mountain(currentX);
+                mountains.push(m);
+                currentX += m.w * 0.7; 
+            }
+        }
+
         function init() {
             const aspect = window.innerWidth / window.innerHeight;
             canvas.width = 360; 
             canvas.height = canvas.width / aspect;
             if (canvas.height < 640) canvas.height = 640;
+            
             initClouds();
+            initMountains();
+            
             resetGameToStart();
             requestAnimationFrame(gameLoop);
         }
@@ -322,11 +382,9 @@
             if (currentState === 'GAMEOVER' || currentState === 'EXPLODING') return;
             currentState = 'EXPLODING';
             
-            // 게임 오버 사운드 재생
             deathSound.currentTime = 0;
             deathSound.play().catch(() => {});
 
-            // 폭발 이미지 위치 설정 및 표시
             const canvasRect = canvas.getBoundingClientRect();
             const birdCenterX = canvasRect.left + (bird.x + bird.w/2) * (canvasRect.width / canvas.width);
             const birdCenterY = canvasRect.top + (bird.y + bird.h/2) * (canvasRect.height / canvas.height);
@@ -335,10 +393,8 @@
             explosionImg.style.top = birdCenterY + 'px';
             explosionImg.style.display = 'block';
             
-            // 새 숨기기
             bird.isVisible = false;
 
-            // 약 1초 후 (2배 느린 연출 느낌) 게임 오버 결과창 표시
             setTimeout(() => {
                 currentState = 'GAMEOVER';
                 explosionImg.style.display = 'none';
@@ -361,12 +417,19 @@
             score++;
             scoreDisplay.textContent = score;
             
-            // 점수 팝 애니메이션 적용
-            scoreDisplay.classList.remove('score-pop');
-            void scoreDisplay.offsetWidth; // 리플로우 강제
-            scoreDisplay.classList.add('score-pop');
+            // 10점마다 tada.mp3 재생, 그 외에는 ding.mp3 재생
+            if (score % 10 === 0 && score > 0) {
+                tadaSound.currentTime = 0;
+                tadaSound.play().catch(() => {});
+                showCelebration(`🎉 대단해요! ${score}점! 🎉`);
+            } else {
+                scoreSound.currentTime = 0;
+                scoreSound.play().catch(() => {});
+            }
 
-            if (score % 10 === 0 && score > 0) showCelebration(`🎉 대단해요! ${score}점! 🎉`);
+            scoreDisplay.classList.remove('score-pop');
+            void scoreDisplay.offsetWidth;
+            scoreDisplay.classList.add('score-pop');
         }
 
         function showCelebration(text) {
@@ -483,7 +546,6 @@
                     triggerGameOver();
                 }
                 
-                // 판정 로직 수정: 새의 중심부가 파이프의 왼쪽 선에 닿자마자 점수 획득
                 if (!pipe.passed && bird.x + bird.w / 2 > pipe.x) {
                     pipe.passed = true;
                     updateScore();
@@ -494,9 +556,13 @@
 
         function draw() {
             ctx.clearRect(0, 0, canvas.width, canvas.height);
+            
             clouds.forEach(cloud => cloud.draw(ctx));
+            mountains.forEach(mountain => mountain.draw(ctx));
+
             drawPipes();
             drawBird();
+            
             ctx.fillStyle = '#558022';
             ctx.fillRect(0, canvas.height - 10, canvas.width, 10);
         }
@@ -505,7 +571,10 @@
             let dt = (timestamp - lastTime) / 1000;
             if (dt > 0.1) dt = 0.1; 
             lastTime = timestamp;
+            
             clouds.forEach(cloud => cloud.update(dt));
+            mountains.forEach(mountain => mountain.update(dt));
+
             accumulator += dt;
             while (accumulator >= FIXED_DT) {
                 physicsUpdate();
